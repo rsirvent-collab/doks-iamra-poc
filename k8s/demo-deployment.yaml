@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iamra-demo
+  namespace: iamra-demo
+  labels:
+    app: iamra-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iamra-demo
+  template:
+    metadata:
+      labels:
+        app: iamra-demo
+    spec:
+      containers:
+        - name: rolesanywhere-credential-helper
+          image: public.ecr.aws/rolesanywhere/credential-helper:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - serve
+            - --private-key
+            - /etc/iamra/tls.key
+            - --certificate
+            - /etc/iamra/tls.crt
+            - --role-arn
+            - ${ROLE_ARN}
+            - --profile-arn
+            - ${PROFILE_ARN}
+            - --trust-anchor-arn
+            - ${TRUST_ANCHOR_ARN}
+          volumeMounts:
+            - name: iamra-cert
+              mountPath: /etc/iamra
+              readOnly: true
+        - name: app
+          image: amazon/aws-cli:2.27.50
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+          env:
+            # Trailing slash is required; without it the CLI builds ...9911latest/...
+            - name: AWS_EC2_METADATA_SERVICE_ENDPOINT
+              value: http://127.0.0.1:9911/
+            - name: AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE
+              value: IPv4
+            - name: AWS_REGION
+              value: ${AWS_REGION}
+            - name: AWS_DEFAULT_REGION
+              value: ${AWS_REGION}
+          volumeMounts:
+            - name: iamra-cert
+              mountPath: /etc/iamra
+              readOnly: true
+      volumes:
+        - name: iamra-cert
+          secret:
+            secretName: iamra-client-cert
